@@ -1,0 +1,161 @@
+blueprint:
+  name: multi Motion-activated Light-transition
+  description:
+    Turn the light on to brightness and temperature when motion is detected,
+    depending on the selected time period, different brightness and turn-on time.
+  domain: automation
+  input:
+    motion_entity:
+      name: Motion Sensor
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: motion
+          multiple: True
+    light_target:
+      name: Light
+      selector:
+        target:
+          entity:
+            domain: light
+    on_night_time:
+      name: (Required) On Time Night
+      description: The time when the night mode starts.
+      selector:
+        time: {}
+    off_night_time:
+      name: (Required) Off Time Night
+      description: The time when the night mode ends.
+      selector:
+        time: {}
+    day_brightness:
+      name: (Required) Day brightness
+      description: Brightness, in daytime mode
+      default: 100
+      selector:
+        number:
+          min: 1.0
+          max: 100.0
+          step: 1.0
+          mode: slider
+    transition time:
+      name: transition time day
+      description: Time to transition light from previous to current state
+      default: 15
+      selector:
+        number:
+          min: 0.0
+          max: 120
+          unit_of_measurement: seconds
+          mode: slider
+          step: 1.0
+    night_brightness:
+      name: (Required) Night brightness
+      description: Brightness, in night mode
+      default: 20
+      selector:
+        number:
+          min: 1.0
+          max: 100.0
+          step: 1.0
+          mode: slider
+    night transition time:
+      name: transition time night
+      description: Time to transition light from previous to current state
+      default: 15
+      selector:
+        number:
+          min: 0.0
+          max: 120
+          unit_of_measurement: seconds
+          mode: slider
+          step: 1.0
+    day_temp:
+      name: (Required) Day temp
+      description: Temp, in daytime mode
+      default: 1
+      selector:
+        color_temp: {}
+    night_temp:
+      name: (Required) Night temp
+      description: Temp, in night mode
+      default: 1
+      selector:
+        color_temp: {}
+    no_motion_wait_day:
+      name: Wait time day
+      description:
+        Time to leave the light on after detecting the last movement for
+        daytime mode.
+      default: 120
+      selector:
+        number:
+          min: 0.0
+          max: 3600.0
+          unit_of_measurement: seconds
+          mode: slider
+          step: 1.0
+    no_motion_wait_night:
+      name: Wait time night
+      description:
+        Time to leave the light on after detecting the last movement in
+        night mode
+      default: 120
+      selector:
+        number:
+          min: 0.0
+          max: 3600.0
+          unit_of_measurement: seconds
+          mode: slider
+          step: 1.0
+mode: restart
+max_exceeded: silent
+trigger:
+  platform: state
+  entity_id: !input "motion_entity"
+  from: "off"
+  to: "on"
+action:
+  - choose:
+      - conditions:
+          - condition: time
+            after: !input "on_night_time"
+            before: !input "off_night_time"
+        sequence:
+          - alias: Turn on the light
+            service: light.turn_on
+            data:
+              brightness_pct: !input "night_brightness"
+              color_temp: !input "night_temp"
+              transition: !input "night transition time"
+            target: !input "light_target"
+          - alias: Wait until there is no motion from device
+            wait_for_trigger:
+              platform: state
+              entity_id: !input "motion_entity"
+              from: "on"
+              to: "off"
+          - alias: Wait the number of seconds that has been set
+            delay: !input "no_motion_wait_night"
+          - alias: Turn off the light
+            service: light.turn_off
+            target: !input "light_target"
+    default:
+      - alias: Turn on the light
+        service: light.turn_on
+        data:
+          brightness_pct: !input "day_brightness"
+          color_temp: !input "day_temp"
+          transition: !input "transition time"
+        target: !input "light_target"
+      - alias: Wait until there is no motion from device
+        wait_for_trigger:
+          platform: state
+          entity_id: !input "motion_entity"
+          from: "on"
+          to: "off"
+      - alias: Wait the number of seconds that has been set
+        delay: !input "no_motion_wait_day"
+      - alias: Turn off the light
+        service: light.turn_off
+        target: !input "light_target"
